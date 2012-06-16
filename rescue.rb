@@ -114,7 +114,7 @@ class Pattern
     def match(path)
         ext = File.extname(path)
         return false if not @pattern.has_key?(ext)
-        return File.size?(path) >= @pattern[ext]
+        return File.size(path) >= @pattern[ext]
     end
 end
 
@@ -149,7 +149,8 @@ end
 def process_directory(from_dir, to_dir)
     pattern = Pattern.get_instance()
     log("D: processing " + from_dir)
-    Dir.glob(from_dir + '/*'){|path|
+    arr = Dir.glob(from_dir + '/*')
+    arr.sort.each{|path|
         if File.symlink?(path) then
             next
         elsif File.directory?(path) then
@@ -167,11 +168,13 @@ def process_file(file, to_dir)
 
     if m then
         filename = File.basename(file)
-        size = File.size?(file)
+        size = File.size(file)
         hash = Digest::SHA256.open(file).hexdigest()
 
-        if not filelist.exists(filename, size, hash) then
-            dest_dir = to_dir + "/" + hash[0, 6] + "/"
+        if size > 4 * 1000 * 1000 * 1000 then
+            log("F: skip %s (too big)" % file)
+        elsif not filelist.exists(filename, size, hash) then
+            dest_dir = to_dir + "/" + hash[0, 3] + "/"
             if not File.exists?(dest_dir) then
                 Dir::mkdir(dest_dir)
             end
@@ -179,7 +182,7 @@ def process_file(file, to_dir)
             num = 1
             while File.exists?(dest) do
                 dest = dest_dir
-                dest += File.basename(filename, ".*") + num.to_s
+                dest += File.basename(filename, ".*") + "." + num.to_s
                 dest += File.extname(filename)
 
                 num += 1
@@ -191,7 +194,7 @@ def process_file(file, to_dir)
             
             log("F: copy %s => %s" % [file, dest])
         else
-            log("F: skip %s(dup)" % file)
+            log("F: skip %s (dup)" % file)
         end
     else
         #log("F: skip %s(unmatch)" % path)
@@ -216,10 +219,13 @@ def main()
     Pattern.create_instance(pattern_str)
     Log.create_instance("./rescue.log")
 
-    process_directory(from_dir, to_dir)
-
-    FileList.get_instance().save()
-
+    begin
+        process_directory(from_dir, to_dir)
+    rescue => e
+        p e
+    ensure
+        FileList.get_instance().save()
+    end
 end
 
 if __FILE__ == $0 then
