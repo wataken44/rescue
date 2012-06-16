@@ -47,7 +47,10 @@ class FileList
         @filename = filename
         @list = {}
 
-        load() if(File.exists?(filename)) 
+        if(File.exists?(filename)) then
+            FileUtils.cp(filename, filename + ".bak")
+            load()
+        end
     end
 
     def load()
